@@ -15,22 +15,22 @@
 //! ```rust,no_run
 //! extern crate image;
 //! extern crate img_hash;
-//! 
+//!
 //! use img_hash::{ImageHash, HashType};
 //!
 //! fn main() {
 //!     let image1 = image::open("image1.png").unwrap();
 //!     let image2 = image::open("image2.png").unwrap();
-//!     
+//!
 //!     // These two lines produce hashes with 64 bits (8 ** 2),
-//!     // using the Gradient hash, a good middle ground between 
+//!     // using the Gradient hash, a good middle ground between
 //!     // the performance of Mean and the accuracy of DCT.
 //!     let hash1 = ImageHash::hash(&image1, 8, HashType::Gradient);
 //!     let hash2 = ImageHash::hash(&image2, 8, HashType::Gradient);
-//!     
+//!
 //!     println!("Image1 hash: {}", hash1.to_base64());
 //!     println!("Image2 hash: {}", hash2.to_base64());
-//!     
+//!
 //!     println!("% Difference: {}", hash1.dist_ratio(&hash2));
 //! }
 //! ```
@@ -41,7 +41,6 @@
 
 extern crate bit_vec;
 
-#[cfg(any(test, feature = "rust-image"))]
 extern crate image;
 
 extern crate rustc_serialize as serialize;
@@ -56,7 +55,6 @@ use dct::dct_2d;
 
 use std::{fmt, hash, ops};
 
-#[cfg(any(test, feature = "rust-image"))]
 mod rust_image;
 
 mod dct;
@@ -92,24 +90,31 @@ impl ImageHash {
 
     /// Calculate the Hamming distance between this and `other`.
     /// Equivalent to counting the 1-bits of the XOR of the two `BitVec`.
-    /// 
+    ///
     /// Essential to determining the perceived difference between `self` and `other`.
     ///
     /// ###Panics
     /// If `self` and `other` have differing `bitv` lengths or `hash_type` values.
     pub fn dist(&self, other: &ImageHash) -> usize {
-        assert!(self.hash_type == other.hash_type,
-               "Image hashes must use the same algorithm for proper comparison!");
-        assert!(self.bitv.len() == other.bitv.len(), 
-                "Image hashes must be the same length for proper comparison!");
+        assert!(
+            self.hash_type == other.hash_type,
+            "Image hashes must use the same algorithm for proper comparison!"
+        );
+        assert!(
+            self.bitv.len() == other.bitv.len(),
+            "Image hashes must be the same length for proper comparison!"
+        );
 
-        self.bitv.iter().zip(other.bitv.iter())
-            .filter(|&(left, right)| left != right).count()
+        self.bitv
+            .iter()
+            .zip(other.bitv.iter())
+            .filter(|&(left, right)| left != right)
+            .count()
     }
 
     /// Calculate the Hamming distance between `self` and `other`,
     /// then normalize it to `[0, 1]`, as a fraction of the total bits.
-    /// 
+    ///
     /// Roughly equivalent to the % difference between the two images,
     /// represented as a decimal.
     ///
@@ -117,19 +122,21 @@ impl ImageHash {
     pub fn dist_ratio(&self, other: &ImageHash) -> f32 {
         self.dist(other) as f32 / self.size() as f32
     }
-    
+
     /// Get the hash size of this image. Should be equal to the number of bits in the hash.
-    pub fn size(&self) -> u32 { self.bitv.len() as u32 }
+    pub fn size(&self) -> u32 {
+        self.bitv.len() as u32
+    }
 
     /// Get the `HashType` that this `ImageHash` was created with.
-    pub fn hash_type(&self) -> HashType { self.hash_type }
+    pub fn hash_type(&self) -> HashType {
+        self.hash_type
+    }
 
-    /// Build a grayscale image using the bits of the hash, 
+    /// Build a grayscale image using the bits of the hash,
     /// setting pixels to white (`0xff`) for `0` and black (`0x00`) for `1`.
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.bitv.iter()
-            .map(|bit| (bit as u8) * 0xff)
-            .collect()
+        self.bitv.iter().map(|bit| (bit as u8) * 0xff).collect()
     }
 
     /// Create an `ImageHash` instance from the given Base64-encoded string.
@@ -139,7 +146,7 @@ impl ImageHash {
     /// Does **not** preserve the internal value of `HashType::UserDCT`.
     /// ## Errors:
     /// Returns a FromBase64Error::InvalidBase64Length when trying to hash a zero-length string
-    pub fn from_base64(encoded_hash: &str) -> Result<ImageHash, FromBase64Error>{
+    pub fn from_base64(encoded_hash: &str) -> Result<ImageHash, FromBase64Error> {
         let mut data = try!(encoded_hash.from_base64());
         // The hash type should be the first bit of the hash
         if data.len() == 0 {
@@ -147,7 +154,7 @@ impl ImageHash {
         }
         let hash_type = HashType::from_byte(data.remove(0));
 
-        Ok(ImageHash{
+        Ok(ImageHash {
             bitv: BitVec::from_bytes(&*data),
             hash_type: hash_type,
         })
@@ -168,10 +175,10 @@ impl ImageHash {
 /// The length of a row in a 2D matrix when packed into a 1D array.
 pub type Rowstride = usize;
 
-/// A 2-dimensional Discrete Cosine Transform function that receives 
+/// A 2-dimensional Discrete Cosine Transform function that receives
 /// and returns 1-dimensional packed data.
 ///
-/// The function will be provided the pre-hash data as a 1D-packed vector, 
+/// The function will be provided the pre-hash data as a 1D-packed vector,
 /// which should be interpreted as a 2D matrix with a given rowstride:
 ///
 /// ```notest
@@ -193,8 +200,8 @@ impl DCT2DFunc {
     }
 
     fn call(&self, data: &[f64], rowstride: Rowstride) -> Vec<f64> {
-        (self.0)(data, rowstride) 
-    } 
+        (self.0)(data, rowstride)
+    }
 }
 
 impl Clone for DCT2DFunc {
@@ -221,14 +228,17 @@ impl fmt::Debug for DCT2DFunc {
 
 impl hash::Hash for DCT2DFunc {
     /// Adds the contained function pointer as `usize`.
-    fn hash<H>(&self, state: &mut H) where H: hash::Hasher {
-       (self.as_ptr() as usize).hash(state) 
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        (self.as_ptr() as usize).hash(state)
     }
 }
 
 /// An enum describing the hash algorithms that `img_hash` offers.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum HashType { 
+pub enum HashType {
     /// This algorithm first averages the pixels of the reduced-size and color image,
     /// and then compares each pixel to the average.
     ///
@@ -244,9 +254,9 @@ pub enum HashType {
     ///
     /// More accurate than `Mean` but much faster than `DCT`.
     Gradient,
-    /// A version of `Gradient` that adds an extra hash pass orthogonal to the first 
+    /// A version of `Gradient` that adds an extra hash pass orthogonal to the first
     /// (i.e. on columns in addition to rows).
-    /// 
+    ///
     /// Slower than `Gradient` and produces a double-sized hash, but much more accurate.
     DoubleGradient,
     /// This algorithm runs a Discrete Cosine Transform on the reduced-color and size image,
@@ -257,7 +267,7 @@ pub enum HashType {
     /// Call `precompute_dct_matrix()` with your chosen hash size to memoize the DCT matrix for the
     /// given size, which can produce significant speedups in repeated hash runs.
     DCT,
-    /// Equivalent to `DCT`, but allows the user to provide their own 2-dimensional DCT function. 
+    /// Equivalent to `DCT`, but allows the user to provide their own 2-dimensional DCT function.
     /// See the `DCT2DFunc` docs for more info.
     ///
     /// Use this variant if you want a specialized or optimized 2D DCT implementation, such as from
@@ -272,7 +282,7 @@ pub enum HashType {
 
 impl HashType {
     fn hash<I: HashImage>(self, img: &I, hash_size: u32) -> BitVec {
-        use HashType::*; 
+        use HashType::*;
 
         match self {
             Mean => mean_hash(img, hash_size),
@@ -317,8 +327,7 @@ impl HashType {
 fn mean_hash<I: HashImage>(img: &I, hash_size: u32) -> BitVec {
     let hash_values = prepare_image(img, hash_size, hash_size);
 
-    let mean = hash_values.iter().fold(0u32, |b, &a| a as u32 + b) 
-        / hash_values.len() as u32;
+    let mean = hash_values.iter().fold(0u32, |b, &a| a as u32 + b) / hash_values.len() as u32;
 
     hash_values.into_iter().map(|x| x as u32 >= mean).collect()
 }
@@ -328,10 +337,12 @@ const DCT_HASH_SIZE_MULTIPLIER: u32 = 4;
 fn dct_hash<I: HashImage>(img: &I, hash_size: u32, dct_2d_func: DCT2DFunc) -> BitVec {
     let large_size = (hash_size * DCT_HASH_SIZE_MULTIPLIER) as usize;
 
-    // We take a bigger resize than fast_hash, 
+    // We take a bigger resize than fast_hash,
     // then we only take the lowest corner of the DCT
     let hash_values: Vec<_> = prepare_image(img, large_size as u32, large_size as u32)
-        .into_iter().map(|val| (val as f64) / 255.0).collect();
+        .into_iter()
+        .map(|val| (val as f64) / 255.0)
+        .collect();
 
     let dct = dct_2d_func.call(&hash_values, large_size);
 
@@ -340,8 +351,7 @@ fn dct_hash<I: HashImage>(img: &I, hash_size: u32, dct_2d_func: DCT2DFunc) -> Bi
 
     let cropped_dct = crop_2d_dct(&dct, original, new);
 
-    let mean = cropped_dct.iter().fold(0f64, |b, &a| a + b) 
-        / cropped_dct.len() as f64;
+    let mean = cropped_dct.iter().fold(0f64, |b, &a| a + b) / cropped_dct.len() as f64;
 
     cropped_dct.into_iter().map(|x| x >= mean).collect()
 }
@@ -389,16 +399,20 @@ impl<'a, T: 'a> ops::Index<usize> for Column<'a, T> {
     type Output = T;
     #[inline(always)]
     fn index(&self, idx: usize) -> &T {
-       &self.data[idx * self.rowstride]
+        &self.data[idx * self.rowstride]
     }
 }
 
-/// The guts of the gradient hash, 
+/// The guts of the gradient hash,
 /// separated so we can reuse them for both `Gradient` and `DoubleGradient`.
-fn gradient_hash_impl<I: ops::Index<usize, Output=u8> + ?Sized>(bytes: &I, len: u32, bitv: &mut BitVec) {
+fn gradient_hash_impl<I: ops::Index<usize, Output = u8> + ?Sized>(
+    bytes: &I,
+    len: u32,
+    bitv: &mut BitVec,
+) {
     let len = len as usize;
 
-    for i in 1 .. len {
+    for i in 1..len {
         let this = &bytes[i];
         let last = &bytes[i - 1];
 
@@ -412,7 +426,7 @@ fn gradient_hash<I: HashImage>(img: &I, hash_size: u32) -> BitVec {
     let mut bitv = BitVec::with_capacity((hash_size * hash_size) as usize);
 
     for row in bytes.chunks((hash_size + 1) as usize) {
-        gradient_hash_impl(row, hash_size, &mut bitv); 
+        gradient_hash_impl(row, hash_size, &mut bitv);
     }
 
     bitv
@@ -424,8 +438,8 @@ fn double_gradient_hash<I: HashImage>(img: &I, hash_size: u32) -> BitVec {
     let bytes = prepare_image(img, rowstride, rowstride);
     let mut bitv = BitVec::with_capacity((hash_size * hash_size * 2) as usize);
 
-    
-    for row in bytes.chunks(rowstride as usize) { 
+
+    for row in bytes.chunks(rowstride as usize) {
         gradient_hash_impl(row, rowstride, &mut bitv);
     }
 
@@ -464,7 +478,9 @@ pub trait HashImage {
     fn channel_count() -> u8;
 
     /// Call `iter_fn` for each pixel in the image, passing `(x, y, [pixel data])`.
-    fn foreach_pixel<F>(&self, iter_fn: F) where F: FnMut(u32, u32, &[u8]);
+    fn foreach_pixel<F>(&self, iter_fn: F)
+    where
+        F: FnMut(u32, u32, &[u8]);
 }
 
 fn prepare_image<I: HashImage>(img: &I, width: u32, height: u32) -> Vec<u8> {
@@ -481,12 +497,14 @@ fn crop_2d_dct(packed: &[f64], original: (usize, usize), new: (usize, usize)) ->
 
     assert!(new_width < orig_width && new_height < orig_height);
 
-    (0 .. new_height).flat_map(|y| {
-        let start = y * orig_width;
-        let end = start + new_width;
+    (0..new_height)
+        .flat_map(|y| {
+            let start = y * orig_width;
+            let end = start + new_width;
 
-        packed[start .. end].iter().cloned()
-    }).collect()
+            packed[start..end].iter().cloned()
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -506,7 +524,9 @@ mod test {
     fn gen_test_img(width: u32, height: u32) -> RgbaBuf {
         let len = (width * height * 4) as usize;
         let mut buf = Vec::with_capacity(len);
-        unsafe { buf.set_len(len); } // We immediately fill the buffer.
+        unsafe {
+            buf.set_len(len);
+        } // We immediately fill the buffer.
         weak_rng().fill_bytes(&mut *buf);
 
         ImageBuffer::from_raw(width, height, buf).unwrap()
@@ -519,11 +539,11 @@ mod test {
         let hash2 = ImageHash::hash(&test_img, 32, HashType::Mean);
 
         assert_eq!(hash1, hash2);
-    }   
+    }
 
     #[test]
     fn dct_2d_equality() {
-        fn dummy_dct(_ : &[f64], _: usize) -> Vec<f64> {
+        fn dummy_dct(_: &[f64], _: usize) -> Vec<f64> {
             unimplemented!();
         }
 
@@ -535,11 +555,11 @@ mod test {
 
     #[test]
     fn dct_2d_inequality() {
-        fn dummy_dct(_ : &[f64], _: usize) -> Vec<f64> {
+        fn dummy_dct(_: &[f64], _: usize) -> Vec<f64> {
             unimplemented!();
         }
 
-        fn dummy_dct_2(_ : &[f64], _: usize) -> Vec<f64> {
+        fn dummy_dct_2(_: &[f64], _: usize) -> Vec<f64> {
             unimplemented!();
         }
 
@@ -553,7 +573,7 @@ mod test {
     fn size() {
         let test_img = gen_test_img(1024, 1024);
         let hash = ImageHash::hash(&test_img, 32, HashType::Mean);
-        assert_eq!(32*32, hash.size());
+        assert_eq!(32 * 32, hash.size());
     }
 
     #[test]
@@ -567,14 +587,14 @@ mod test {
         assert!(decoded_result.is_ok());
 
         assert_eq!(decoded_result.unwrap(), hash1);
-    }  
+    }
 
     #[test]
     fn base64_error_on_empty() {
         let decoded_result = ImageHash::from_base64("");
         match decoded_result {
             Err(InvalidBase64Length) => (),
-            _ => panic!("Expected a invalid length error")
+            _ => panic!("Expected a invalid length error"),
         };
     }
 
@@ -585,8 +605,8 @@ mod test {
 
         extern crate test;
 
-        use ::{HashType, ImageHash};
-        
+        use {HashType, ImageHash};
+
         use self::test::Bencher;
 
         const BENCH_HASH_SIZE: u32 = 8;
@@ -594,7 +614,7 @@ mod test {
 
         fn bench_hash(b: &mut Bencher, hash_type: HashType) {
             let test_img = gen_test_img(TEST_IMAGE_SIZE, TEST_IMAGE_SIZE);
-        
+
             b.iter(|| ImageHash::hash(&test_img, BENCH_HASH_SIZE, hash_type));
         }
 
@@ -632,13 +652,13 @@ mod test {
 
             fill_rand(&mut test_vals);
 
-            let mut output = [0f64;  ROW_LEN];
+            let mut output = [0f64; ROW_LEN];
 
             ::dct::clear_precomputed_matrix();
 
             // Explicit slicing is necessary
             b.iter(|| ::dct::dct_1d(&test_vals[..], &mut output[..], ROW_LEN));
-        
+
             test::black_box(&output);
         }
 
@@ -649,7 +669,7 @@ mod test {
 
             fill_rand(&mut test_vals);
 
-            let mut output = [0f64;  ROW_LEN];
+            let mut output = [0f64; ROW_LEN];
 
             ::dct::precomp_exact(ROW_LEN as u32);
 
